@@ -1,5 +1,6 @@
 import datetime
 from enum import unique
+import functools
 import json
 import os
 import pprint
@@ -35,6 +36,9 @@ import os
 import sys
 import shutil
 
+from auth import is_activity_id_matching, is_admin_required
+
+
 class ReverseProxied(object):
     def __init__(self, app):
         self.app = app
@@ -57,7 +61,7 @@ config = {
     "ENV": "development",
     "CACHE_TYPE": "simple",
     "CACHE_DEFAULT_TIMEOUT": 600,
-    "SECRET_KEY": "replace-me",
+    "SECRET_KEY": "7d6b4176f97640d9721dbcc2",
     "SESSION_TYPE": "filesystem",
     "SESSION_FILE_DIR": mkdtemp(),
     "SESSION_COOKIE_NAME": "flask-session-id",
@@ -67,7 +71,7 @@ config = {
     "DEBUG_TB_INTERCEPT_REDIRECTS": False,
     "SQLALCHEMY_DATABASE_URI": "sqlite:///databases/test_db.sqlite",
     "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-    "TOOL_URL": "https://mighty-geckos-hammer-84-115-224-49.loca.lt",
+    "TOOL_URL": "https://shaky-signs-boil-84-115-224-49.loca.lt",
     "UPLOAD_FOLDER": "uploads",
 }
 app.config.from_mapping(config)
@@ -377,11 +381,10 @@ def launch():
     launch_data_storage = get_launch_data_storage()
     message_launch = ExtendedFlaskMessageLaunch(flask_request, tool_conf, launch_data_storage=launch_data_storage)
     message_launch_data = message_launch.get_launch_data()
-   # pprint.pprint(message_launch_data)
-    print("SECTION ID?")
     activity_id = message_launch_data.get('https://purl.imsglobal.org/spec/lti/claim/resource_link')\
         .get('id')
     session['activity_id'] = activity_id
+    session.permanent = True
 
     
     
@@ -395,7 +398,7 @@ def launch():
         user_is_admin = True
         print("User is Admin") 
     session['is_admin'] = user_is_admin
-
+    print('USER IS ADMIN:' + str(user_is_admin))
     print("CURRENT ID")
     print(message_launch.get_launch_id())
     # Loading in the Token that was previously set via QR Code Link
@@ -513,7 +516,10 @@ def get_jwks():
     return jsonify(tool_conf.get_jwks())
     # return jsonify({'keys': tool_conf.get_jwks()})
 
+
 @app.route('/configure_activity/', methods=['POST'])
+@is_admin_required
+@is_activity_id_matching
 def configure_activity():
     if request.method == 'POST':
         activity_id = request.form['activity_id']
@@ -531,46 +537,6 @@ def configure_activity():
         db.session.commit()
         return render_template("activity_updated.html")
     return "Method Not Allowed", 403
-
-# @app.route('/generate_tokens/', methods=['POST'])
-# def generate_tokens():
-#     if request.method == 'POST':
-#         num_tokens = int(request.form['num_tokens'])
-#         activity_url = request.form['activity_url']
-#         token = '12345' # dummy token for testing
-#         activity_id = session['activity_id']
-#         is_admin = session['is_admin']
-
-#         if not is_admin:
-#             return "Unauthorized", 401
-        
-#         max_batch_id = db.session.query(func.max(Grade_token.batch_id)).\
-#         filter(Grade_token.activity_id == activity_id).\
-#         scalar()
-
-#         if max_batch_id:
-#             max_batch_id += 1
-#         else:
-#             max_batch_id = 1
-#         expired_by_date = datetime.datetime.now()
-#         print('Flo Test')
-#         print(max_batch_id)
-#         x = range(5)
-#         tokens = generate_tokens_helper(max_batch_id,activity_id,num_tokens,expired_by_date)
-#         print(tokens)
-#         filename = batch_pdf_factory(tokens,activity_url,max_batch_id,activity_id)
-#         print('Flo Test3')
-#         print(filename)
-#        # qr_img = qrcode.make(load_token_url)
-#        # pdf = FPDF()
-        
-#         # imagelist is the list with all image filenames
-#         #for image in imagelist:
-#         #pdf.add_page()
-#         #pdf.image(qr_img,10,10,21,29)
-#         #pdf.output("yourfile.pdf", "F")
-#         return render_template("tokens_generated.html", **{'filename':filename})
-#     return "Method Not Allowed", 403
 
 def generate_tokens_helper(batch_id,activity_id,amount_tokens,expired_by_date,retries = 0):
     tokens = []
@@ -684,9 +650,12 @@ def batch_pdf_factory(tokens,redirect_url,batch_id,activity_id):
     return filename
 
 @app.route('/uploads/<filename>', methods=['GET', 'POST'])
+@is_admin_required
 def download(filename):
+
     uploads = os.path.join(app.root_path, app.config['UPLOAD_FOLDER'])
     return send_from_directory(uploads, filename,as_attachment=True)
+
 
 @app.route('/load_token/', methods = ['POST', 'GET'])
 def load_token():
@@ -700,6 +669,9 @@ def load_token():
             session['token_id'] = token_id
             return response
     return('Something went wrong!')
+
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9001)

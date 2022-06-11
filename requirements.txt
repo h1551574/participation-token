@@ -12,3 +12,4 @@ fpdf==1.7.2
 bcrypt==3.2.2
 celery==5.2.7
 redis==4.3.3
+wrapt==1.14.1
