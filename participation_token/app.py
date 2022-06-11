@@ -16,10 +16,10 @@ import celery
 from flask import Flask, jsonify, request, render_template, send_from_directory, url_for, redirect, make_response, session
 from flask_caching import Cache
 from flask_debugtoolbar import DebugToolbarExtension
+from pytz import timezone
 import sqlalchemy
 from werkzeug.exceptions import Forbidden
 from pylti1p3.contrib.flask import FlaskOIDCLogin, FlaskMessageLaunch, FlaskRequest, FlaskCacheDataStorage
-from pylti1p3.deep_link_resource import DeepLinkResource
 from pylti1p3.grade import Grade
 from pylti1p3.lineitem import LineItem
 from pylti1p3.tool_config import ToolConfJsonFile
@@ -71,7 +71,7 @@ config = {
     "DEBUG_TB_INTERCEPT_REDIRECTS": False,
     "SQLALCHEMY_DATABASE_URI": "sqlite:///databases/test_db.sqlite",
     "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-    "TOOL_URL": "https://shaky-signs-boil-84-115-224-49.loca.lt",
+    "TOOL_URL": "https://wild-plums-clap-84-115-224-49.loca.lt",
     "UPLOAD_FOLDER": "uploads",
 }
 app.config.from_mapping(config)
@@ -261,14 +261,16 @@ def clean_up_batch_folder(activity_id, batch_id):
         print("The file '" + filename + "' does not exist, so it was not removed!")
     return
 
+
 @app.route('/longtask', methods=['POST'])
+@is_admin_required
 def longtask():
     activity_id = session['activity_id']
-    is_admin = session['is_admin']
-    if not is_admin:
-        return "Unauthorized", 401
 
     amount_tokens = int(request.form['num_tokens'])
+ #   expiration_date_test = request.form['expiration_date']
+ #   timezone_offset = request.form['timezone_offset']
+
     expired_by_date = datetime.datetime.now()
     max_batch_id = db.session.query(func.max(Grade_token.batch_id)).\
     filter(Grade_token.activity_id == activity_id).\
@@ -387,7 +389,7 @@ def launch():
     session.permanent = True
 
     
-    
+    # assigning admin rights based on lti roles
     admin_roles = [
         'http://purl.imsglobal.org/vocab/lis/v2/person#Administrator',
         'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'
@@ -396,38 +398,29 @@ def launch():
     curr_roles = message_launch_data.get('https://purl.imsglobal.org/spec/lti/claim/roles', {})
     if any(x in admin_roles for x in curr_roles):
         user_is_admin = True
-        print("User is Admin") 
+
     session['is_admin'] = user_is_admin
-    print('USER IS ADMIN:' + str(user_is_admin))
-    print("CURRENT ID")
-    print(message_launch.get_launch_id())
+
+
     # Loading in the Token that was previously set via QR Code Link
-    token = request.cookies.get('token')
-    token_id = request.cookies.get('token_id')
+
+    token = session.get('token')
+    token_id = session.get('token_id')
     if token:
         print(token)
         has_token = True
         grade_token = Grade_token.query.filter_by(id=token_id,activity_id=activity_id).first()
         activity_config = Activity_config.query.filter_by(id=activity_id).first()
-        print('TOKEN TEST:')
-        print(token_id)
-        print(grade_token)
-        print(bcrypt.checkpw(token.encode('UTF-8'), grade_token.code))
+
+        # Testing 
         token_ok = bcrypt.checkpw(token.encode('UTF-8'), grade_token.code)
-        print('grade_token.redeemed')
-        print(grade_token.redeemed)
         if token_ok and not grade_token.redeemed:
             if not message_launch.has_ags():
                 raise Forbidden("Don't have grades!")
+            grades = message_launch.get_ags()
 
             sub = message_launch.get_launch_data().get('sub')
             timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
-            print("activity_config.max_score")
-            print(activity_config.max_score)
-
-            
-
-            grades = message_launch.get_ags()
 
             achieved_grade = 0
 
@@ -477,7 +470,6 @@ def launch():
 
     tpl_kwargs = {
         'page_title': PAGE_TITLE,
-        'is_deep_link_launch': message_launch.is_deep_link_launch(),
         'launch_data': message_launch.get_launch_data(),
         'launch_id': message_launch.get_launch_id(),
         'curr_user_name': message_launch_data.get('name', ''),
@@ -485,27 +477,28 @@ def launch():
         'curr_token' : token,
         'has_token' : has_token,
     }
-    if message_launch.is_deep_link_launch():
-        return render_template('deep_config.html', **tpl_kwargs)
     
     curr_activity_id = activity_id
 
     activity_config = Activity_config.query.filter_by(id=curr_activity_id).first()
     tpl_kwargs['curr_activity_id'] = curr_activity_id
 
-    if not activity_config is None:
-        tpl_kwargs['curr_max_score'] = activity_config.max_score
-        tpl_kwargs['curr_token_score'] = activity_config.token_score
-        tpl_kwargs['curr_activity_url'] = activity_config.redirect_url
+
     
 
 
     if user_is_admin:
-        print('Test2: ')
+        if activity_config is None:
+            return render_template('configure_activity.html', **tpl_kwargs)
+        
+        tpl_kwargs['curr_max_score'] = activity_config.max_score
+        tpl_kwargs['curr_token_score'] = activity_config.token_score
+        tpl_kwargs['curr_activity_url'] = activity_config.redirect_url
+        
+
         batches = Token_batch.query.filter_by(activity_id=activity_id).all()
-       # batches = db.session.query(Grade_token).all()
         tpl_kwargs['curr_batches'] = batches
-        return render_template('config.html', **tpl_kwargs)
+        return render_template('manage_activity.html', **tpl_kwargs)
     return render_template('redeem_token.html', **tpl_kwargs)
 
 

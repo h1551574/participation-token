@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<body>
+    <h3 style="text-align: center;">Participation Token: Configure Activity</h3>
+    <div id="wrapper">
+    <div class="activity-config" id="centered-div" style="width: 50%; margin: 0 auto; text-align: center;">
+        <p>Before using <i>Participation Token</i> the activity must be configured!</p>
+        <p style="color: rgb(177, 2, 2);">WARNING: The Configuration can only be set once to ensure a smooth operation during final use!</p>
+        <form method="post" action="{{url_for('configure_activity')}}">
+            <p>Activity ID: {{curr_activity_id}}</p>
+            <input type="hidden" id="activity_id" name="activity_id" value="{{curr_activity_id}}" readonly>
+            <label for="max_score">Maximum Points: </label>
+            <input type="number" id="max_score" name="max_score" 
+                min="0" value="{{curr_max_score}}" required>
+            <br>
+            <label for="token_score">Points per Token: </label>
+            <input type="number" id="token_score" name="token_score" 
+                min="0" value="{{curr_token_score}}" required>
+            <br>
+            <label for="activity_url">URL to this Activity: </label>
+            <input type="text" id="activity_url" name="activity_url" value="{{curr_activity_url}}" required>
+            <br>
+            (Hint: Copy the current URL in your browser.)
+            <br>
+            <input type="submit" value="Configure Activity">
+        </form>
+    </div>
+</body>
+{% endblock %}
