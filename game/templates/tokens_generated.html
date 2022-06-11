@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Tokens generated!</h1>
+If document containing qr code was not dowloaded automatically, you can dowload by clicking on this 
+<a href="{{ url_for('download', filename=filename) }}">link</a>.
+
+<br> the page to return to the main menu!
+<script> 
+window.location.href = "{{ url_for('download', filename=filename) }}";
+</script>
+{% endblock %}

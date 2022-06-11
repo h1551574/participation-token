@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h3 style="text-align: center;">Flask example (grade_mode: {{ curr_grade_mode }})</h3>
+{% if has_token %}
+<h4 style="text-align: center;">Token: {{curr_token}}</h4>
+{% else %}
+<h4 style="text-align: center;">Code not pass via QR Code, please enter manually!</h4>
+{% endif %}
+<div id="content">
+    <p>Hier kommt noch mehr!</p>
+    <img src="{{ url_for('static', filename='dog_laptop.webp') }}" alt="Dog with Laptop">
+</div>
+{% endblock %}
+
