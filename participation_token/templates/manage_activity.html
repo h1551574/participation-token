@@ -4,7 +4,36 @@
 <body>
     <h1 style="text-align: center;">Participation Token: Manage Activity</h1>
     <div id="wrapper">
-    <div class="activity-config" id="centered-div" style="width: 50%; margin: 0 auto; text-align: center;">
+    <div class="activity-config" id="centered-div" style="width: 50%; margin: 0 auto; text-align: center;">        
+        <!-- Button trigger modal -->
+        After the activity has finished and all tokens have been redeemed, you should close the activity!
+        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#exampleModal">
+            Close Activity
+        </button>
+        
+        <!-- Modal -->
+        <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                <h5 class="modal-title" id="exampleModalLabel">Do you really want to close the Activity?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p style="color:maroon">WARNING!: Closing the activity will expire and delete
+                        all generated tokens and students won't be able to redeem them for this activity!
+                    </p>
+                    <p style="color:goldenrod">INFO: Grades from previously redeemed tokens will be preserved!</p>    
+                </div>
+                <div class="modal-footer">
+                <form method="post" action="{{url_for('close_activity')}}">
+                    <input type="submit" class="btn btn-danger" value="Close Activity">
+                </form>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+            </div>
+        </div>            
         <h2>Activity Configuration</h2>
     
         <p><b>Activity ID:</b>  {{curr_activity_id}}</p>
@@ -17,19 +46,9 @@
             <input type="number" id="num_tokens" name="num_tokens" 
                 min="0" max="21" required>
             <br>
-            <label for="expiration_date">Number of Tokens: </label>
-            <input type="datetime-local" id="expiration_date" name="expiration_date" required>
-            <input type="hidden" id="timezone_offset" name="timezone_offset">
-            <script>
-                var dateControl = document.querySelector('#expiration_date');
-                const d = new Date();
-                const dateTimeLocalValue = (new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString()).slice(0, -1);
-                dateControl.value = dateTimeLocalValue;
-                document.querySelector('#timezone_offset').value = d.getTimezoneOffset();
-
-                //var dateControl = document.querySelector('input[type="datetime-local"]');
-                //dateControl.value = '2017-06-01T08:30';
-            </script>
+            <label for="days_until_expired">Days until expired: </label>
+            <input type="number" id="days_until_expired" name="days_until_expired" required
+                min="0" max="31">
             <br>
             <input type="submit" id="btnSubmit" value="Generate and Print Batch">
         </form>
@@ -112,18 +131,38 @@
         });
     </script>
         <h2>Manage Existing Batches</h2>
-        TO-DO
             <table>
                 <tr>
                 <th>Batch ID</th>
                 <th>Expired By</th>
+                <th>Status</th>
                 <th>Actions</th>
                 </tr>
                 {% for batch in curr_batches %}
                 <tr>
                     <td>{{ batch.batch_id }}</td>
-                    <td>{{ batch.expired_by.strftime("%d/%m/%Y, %H:%M:%S") }}</td>
-                    <td><a href="/kommtnoch" class="btn btn-danger">Expire</a> </td>
+                    <td>{{ batch.expired_by.strftime("%d/%m/%Y") }}</td>
+                    <td>
+{% if batch.expired %}
+                        <p style="color:maroon">EXPIRED</p>
+                    </td>
+                    <td>
+                        <form action="{{url_for('delete_batch')}}" method="post" id="delete_batch">
+                            <input type="hidden" id="batch_id" name="batch_id"required value="{{batch.batch_id}}">
+                            <input type="submit" class="btn btn-warning" id="btnSubmit" value="Delete">
+                        </form>
+                    </td>
+{% else %}
+                        <p style="color:darkgreen">ACTIVE</p>
+                    </td>
+                    <td>
+                        <form action="{{url_for('expire_batch')}}" method="post" id="expire_batch">
+                            <input type="hidden" id="batch_id" name="batch_id"required value="{{batch.batch_id}}">
+                            <input type="submit" class="btn btn-danger" id="btnSubmit" value="Expire">
+                        </form>
+                    </td>
+{% endif %}
+                    
                 </tr>
                 {% endfor %}
             </table>
