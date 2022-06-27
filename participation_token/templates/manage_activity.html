@@ -43,8 +43,9 @@
         <h1>Generate Batch of Tokens</h1>
         <form method="post" id="generate_batch_form">
             <label for="num_tokens">Number of Tokens: </label>
+            <!-- Number of tokens per batch limited to 105 (5 pages of tokens) -->
             <input type="number" id="num_tokens" name="num_tokens" 
-                min="0" max="21" required>
+                min="0" max="105" required>
             <br>
             <label for="days_until_expired">Days until expired: </label>
             <input type="number" id="days_until_expired" name="days_until_expired" required

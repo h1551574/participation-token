@@ -10,14 +10,13 @@
     <br>
     If not please contact your professor or supervisor to resolve the issue!
     {% else %}
-    <h3 style="text-align: center;">Code has been redeemed!</h3>
+    <h3 style="text-align: center; color:darkgreen;">Code has been redeemed!</h3>
     <h4 style="text-align: center;">Token: {{curr_token}}</h4>
     <div id="content">
         <p>Please check your gradebook!</p>
-        {% if has_token %}
+        {% if has_max_score %}
         <p style="color:maroon"><b>WARNING!: Maximum score reached: reedeming more codes will not increase your grade any further!</b></p>
         {% endif %}
-        <img src="{{ url_for('static', filename='dog_laptop.webp') }}" alt="Dog with Laptop">
     </div>
     {% endif %}
 {% else %}
@@ -25,8 +24,7 @@
 <h4 style="text-align: center;">Code not passed via QR Code</h4>
 
 <div id="content">
-    <p>Please rescan QR code or enter manually:</p>
-    <img src="{{ url_for('static', filename='dog_laptop.webp') }}" alt="Dog with Laptop">
+    <p>Please try rescanning QR code!</p>
 </div>
 {% endif %}
 

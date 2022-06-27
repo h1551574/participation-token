@@ -72,7 +72,7 @@ config = {
     "DEBUG_TB_INTERCEPT_REDIRECTS": False,
     "SQLALCHEMY_DATABASE_URI": "sqlite:///databases/test_db.sqlite",
     "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-    "TOOL_URL": "https://793c-2a02-8388-3c1-bb00-62da-2606-b90c-fea0.eu.ngrok.io",
+    "TOOL_URL": "https://1983-2a02-8388-3c1-bb00-d50e-df50-5ffe-a058.eu.ngrok.io",
     "UPLOAD_FOLDER": "uploads",
 }
 app.config.from_mapping(config)
@@ -91,6 +91,7 @@ class Activity_config(db.Model):
 
     def __repr__(self):
         return '<Id %r> ' % self.id + '<Max  %r> ' % self.max_score + '<TS  %r> ' % self.token_score
+
 class Grade_token(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.LargeBinary, nullable=False)
@@ -111,7 +112,12 @@ class Token_batch(db.Model):
     def __repr__(self):
         return '<B_ID  %r> ' % self.batch_id + '<A_ID  %r> ' % self.activity_id + '<EXP_DATE  %r> ' % self.expired_by
 
-
+class User_timeout(db.Model):
+    user_id = db.Column(db.Integer, primary_key=True)
+    last_failed_attempt = db.Column(db.DateTime, nullable=False)
+    blocked_until = db.Column(db.DateTime, nullable=False)
+    num_failed_attempts = db.Column(db.Integer, nullable=False)
+    minutes_blocked = db.Column(db.Integer, nullable=False)
 
 def make_celery(app):
     celery = Celery('app')
@@ -182,10 +188,15 @@ def pdf_factory_async(task,tokens,redirect_url,batch_id,activity_id):
             self.ln(20)
 
     pdf = PDF()
+    # Initial Page Values (Before moving down)
     pdf.add_page()
+    pdf.ln(16) # Top Offset
+    token_counter = 0
+    yoffset = 21
+    y_dash = 55
+
 
     pdf.set_font('Times', '', 9)
-    yoffset = 21
     xoffsetRight = 155
     xoffsetMiddle = 95
     xoffsetLeft = 35
@@ -196,9 +207,8 @@ def pdf_factory_async(task,tokens,redirect_url,batch_id,activity_id):
     cell_width = 62
     cell_height = 10
 
-    pdf.ln(16) # Top Offset
+    
 
-    y_dash = 55
     x1_dash = 0
     x2_dash = 210
 
@@ -212,6 +222,15 @@ def pdf_factory_async(task,tokens,redirect_url,batch_id,activity_id):
         os.mkdir(dir)
 
     for token in load_token_url:
+        # New Page after 21st token
+        if token_counter == 21:
+            token_counter = 0
+            pdf.add_page()
+            pdf.ln(16) # Top Offset
+            y_dash = 55
+            yoffset = 21
+        
+        token_counter += 1
         qr_img = qrcode.make(token[0])
         qr_img.save(activity_id+"/qr_code_"+activity_id+token[1]+".png")
         if imagePosition==0:  
@@ -456,7 +475,7 @@ def launch():
 
     
 
-
+    # Admin Launch
     if user_is_admin:
         if activity_config is None:
             return render_template('configure_activity.html', **tpl_kwargs)
@@ -471,89 +490,143 @@ def launch():
         if activity_config.is_closed:
             return render_template('activity_closed.html', **tpl_kwargs)
         return render_template('manage_activity.html', **tpl_kwargs)
-    if activity_config.is_closed:
-        return render_template('activity_closed_student.html', **tpl_kwargs)
-
-    # Loading in the Token that was previously set via QR Code Link
-
-    token = session.get('token')
-    token_id = session.get('token_id')
-    token_batch_id = session.get('token_batch_id')
-    token_batch = Token_batch.query.filter_by(batch_id=token_batch_id,activity_id=activity_id).first()
-    has_max_score = False
-
-    if token_batch is None:
-        return render_template('batch_expired_removed.html')
-    elif token_batch.expired:
-        return render_template('batch_expired_removed.html')
-    
-    if token:
-        print(token)
-        has_token = True
-
-        grade_token = Grade_token.query.filter_by(id=token_id,activity_id=activity_id).first()
-        
-        activity_config = Activity_config.query.filter_by(id=activity_id).first()
-        token_redeemed = grade_token.redeemed
-        # Testing 
-        token_ok = bcrypt.checkpw(token.encode('UTF-8'), grade_token.code)
-        if token_ok and not grade_token.redeemed:
-            if not message_launch.has_ags():
-                raise Forbidden("Don't have grades!")
-            grades = message_launch.get_ags()
-
-            sub = message_launch.get_launch_data().get('sub')
-            timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
-
-            achieved_grade = 0
-
-            score_line_item = LineItem()
-            score_line_item.set_tag('grade_('+str(activity_id)+')') \
-                .set_score_maximum(activity_config.max_score) \
-                .set_label('Grade_('+str(activity_id)+')')
-            if activity_id:
-                score_line_item.set_resource_id(activity_id)
-
-            scores = grades.get_grades(score_line_item)
-            for sc in scores:
-                if sc['userId'] == sub:
-                    print('RESULT SCORE')
-                    print(sc['resultScore'])
-                    achieved_grade = sc['resultScore']
-            
-            print("achieved_grade")
-            print(achieved_grade)
-            if achieved_grade < activity_config.max_score:
-                achieved_grade = achieved_grade+activity_config.token_score
-            if achieved_grade >= activity_config.max_score:
-                achieved_grade = activity_config.max_score
-                has_max_score = True
-
-            sc = Grade()
-            sc.set_score_given(achieved_grade) \
-                .set_score_maximum(activity_config.max_score) \
-                .set_timestamp(timestamp) \
-                .set_activity_progress('Completed') \
-                .set_grading_progress('FullyGraded') \
-                .set_user_id(sub)
-
-            sc_line_item = LineItem()
-            sc_line_item.set_tag('grade_('+str(activity_id)+')') \
-                .set_score_maximum(activity_config.max_score) \
-                .set_label('Grade_('+str(activity_id)+')')
-            if activity_id:
-                sc_line_item.set_resource_id(activity_id)
-
-            grades.put_grade(sc, sc_line_item)
-            grade_token.redeemed = True
-            db.session.commit()
+    # Student-Launch:
     else:
+        if activity_config.is_closed:
+            return render_template('activity_closed_student.html', **tpl_kwargs)
+
+        # Loading in the Token that was previously set via QR Code Link
+        user_id = message_launch.get_launch_data().get('sub')
+        user_timeout = User_timeout.query.filter_by(user_id=user_id).first()
+        if user_timeout is not None:
+            now = datetime.datetime.now()
+            if user_timeout.last_failed_attempt+datetime.timedelta(minutes=15) < now:
+                # Reset failed attempts counter after 15 minutes
+                # to decrease chance of help desk flooding
+                user_timeout.num_failed_attempts = 0
+                db.session.commit()
+
+            if user_timeout.blocked_until > now:
+                tpl_kwargs['minutes_blocked'] = user_timeout.minutes_blocked
+                db.session.commit()
+                return render_template('student_blocked.html', **tpl_kwargs)
+         
+        token = session.get('token')
+        token_id = session.get('token_id')
+        token_batch_id = session.get('token_batch_id')
+        token_batch = Token_batch.query.filter_by(batch_id=token_batch_id,activity_id=activity_id).first()
+        has_max_score = False
+        token_redeemed = False
         has_token = False
-    tpl_kwargs['curr_token'] = token
-    tpl_kwargs['has_token'] = has_token
-    tpl_kwargs['has_max_score'] = has_max_score
-    tpl_kwargs['token_redeemed'] = token_redeemed
-    return render_template('redeem_token.html', **tpl_kwargs)
+
+        if token_batch_id is not None:
+            if token_batch is None:
+                session['token'] = None
+                session['token_id'] = None
+                session['token_batch_id'] = None
+                return render_template('batch_expired_removed.html')
+            elif token_batch.expired:
+                session['token'] = None
+                session['token_id'] = None
+                session['token_batch_id'] = None
+                return render_template('batch_expired_removed.html')
+        
+        if token:
+            print(token)
+            has_token = True
+
+            grade_token = Grade_token.query.filter_by(id=token_id,activity_id=activity_id).first()
+            
+            activity_config = Activity_config.query.filter_by(id=activity_id).first()
+            token_redeemed = grade_token.redeemed
+            # Testing if code is correct
+            token_ok = bcrypt.checkpw(token.encode('UTF-8'), grade_token.code)
+            if not token_ok:
+                if user_timeout is None:
+                    user_timeout = User_timeout(
+                        user_id=user_id,
+                        blocked_until=datetime.datetime.now(),
+                        last_failed_attempt=datetime.datetime.now(),
+                        num_failed_attempts=1,
+                        minutes_blocked=0)
+                    db.session.add(user_timeout)
+                else:
+                    # Block user after 10 failed attempts (starting at 5min and 30min max.)
+                    # Best Practice: 
+                    # 10 Attempts
+                    # 15 minutes lockout duration
+                    # 15 minutes until attempt count reset
+                    # Taken from Microsoft Windows Security Policy
+                    # Reference: https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/account-lockout-threshold
+                    user_timeout.num_failed_attempts += 1
+                    if user_timeout.num_failed_attempts > 10:
+                        user_timeout.minutes_blocked = 15
+                        user_timeout.blocked_until = datetime.datetime.now() + datetime.timedelta(minutes=15)
+                db.session.commit()
+                session['token'] = None
+                session['token_id'] = None
+                session['token_batch_id'] = None
+                return render_template('wrong_code.html', **tpl_kwargs)
+            if token_ok and not grade_token.redeemed:
+                if not message_launch.has_ags():
+                    raise Forbidden("Don't have grades!")
+                grades = message_launch.get_ags()
+
+                sub = message_launch.get_launch_data().get('sub')
+                timestamp = datetime.datetime.utcnow().isoformat() + 'Z'
+
+                achieved_grade = 0
+
+                score_line_item = LineItem()
+                score_line_item.set_tag('grade_('+str(activity_id)+')') \
+                    .set_score_maximum(activity_config.max_score) \
+                    .set_label('Grade_('+str(activity_id)+')')
+                if activity_id:
+                    score_line_item.set_resource_id(activity_id)
+
+                scores = grades.get_grades(score_line_item)
+                for sc in scores:
+                    if sc['userId'] == sub:
+                        print('RESULT SCORE')
+                        print(sc['resultScore'])
+                        achieved_grade = sc['resultScore']
+                
+                
+                achieved_grade = achieved_grade+activity_config.token_score
+                print("achieved_grade")
+                print(achieved_grade)
+                if achieved_grade >= activity_config.max_score:
+                    achieved_grade = activity_config.max_score
+                    has_max_score = True
+
+                sc = Grade()
+                sc.set_score_given(achieved_grade) \
+                    .set_score_maximum(activity_config.max_score) \
+                    .set_timestamp(timestamp) \
+                    .set_activity_progress('Completed') \
+                    .set_grading_progress('FullyGraded') \
+                    .set_user_id(sub)
+
+                sc_line_item = LineItem()
+                sc_line_item.set_tag('grade_('+str(activity_id)+')') \
+                    .set_score_maximum(activity_config.max_score) \
+                    .set_label('Grade_('+str(activity_id)+')')
+                if activity_id:
+                    sc_line_item.set_resource_id(activity_id)
+
+                grades.put_grade(sc, sc_line_item)
+                grade_token.redeemed = True
+                db.session.commit()
+            
+        tpl_kwargs['curr_token'] = token
+        tpl_kwargs['has_token'] = has_token
+        tpl_kwargs['has_max_score'] = has_max_score
+        tpl_kwargs['token_redeemed'] = token_redeemed
+
+        session['token'] = None
+        session['token_id'] = None
+        session['token_batch_id'] = None
+        return render_template('redeem_token.html', **tpl_kwargs)
 
 
 @app.route('/jwks/', methods=['GET'])
