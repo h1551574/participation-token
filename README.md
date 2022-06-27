@@ -58,3 +58,29 @@ Please modify the issuer config to match your target platform and supply your ow
 - issuer_config.json
 - private.key
 - public.key
+
+**Configure Tool Domain**: You will need to expose the tool over a public domain name for it to work. For the purposes of this tutorial we will use [ngrok](https://ngrok.com/) to expose the tool. For how to use 
+
+After exposing port 9001 over your domain (or ngrok) modify the "TOOL_URL" entry in the configuration in line 75 of app.py.
+#### Start Flask Application
+Inside the application folder /participation-token/participation-token run the following script:
+```sh
+python3 app.py
+```
+The app should now run on port 9001. Now start the celery worker, which handles long running tasks.
+
+#### Install redis for celery
+Follow Step 1 of [this tutorial](https://www.digitalocean.com/community/tutorials/how-to-install-and-secure-redis-on-ubuntu-20-04) to install redis.
+
+#### Start Celery Worker (incl. celery beat)
+Now parallel to the flask app start the corresponding celery worker (**Important:** make sure you are working in the virtual environment you have created):
+
+Note: For the purposes of this tutorial we start the celery worker with an included celery beat instance. While this is practical this is not typical for production environments. Read [this](https://docs.celeryq.dev/en/stable/userguide/periodic-tasks.html#starting-the-scheduler) for more info.
+
+```sh
+celery -A app.celery worker -B
+```
+
+While Celery handles the long running task of generating tokens, celery beat schedules the periodic task which expires old batches of generated tokens.
+
+Now the flask app and the celery worker (incl. beat) should be up and running and you can continue to the short tests section.
