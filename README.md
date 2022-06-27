@@ -46,10 +46,11 @@ sudo pip3 install -r requirements.txt
 ```
 (Note: Install as with root user sudo since else running other scripts with root user will not have access to the modules installed in this step)
 #### Initialize Database
-Now navigate to the application folder, create athe databases folder and execute the init_db script to initialize the sqlite3 database:
+Now navigate to the application folder, create the databases folder and execute the init_db script to initialize the sqlite3 database (Note: here you also need to create the uploads folder which is used for storing the pdfs of generated tokens):
 ```sh
 cd participation-token
 mkdir databases
+mkdir uploads
 sudo python3 init_db.py
 ```
 #### Configure Flask Application
