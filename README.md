@@ -4,7 +4,7 @@ Participation token is an web-tool which, once setup, greatly reduces the admini
 
 ## Deployment Guide
 In this guide we will go through the steps required to install the project on a new Ubuntu Machine and how to run some small user tests.
-**Important: This tutorial assumes you have an Ubuntu Machine with Version 20.04.3 already setup!**
+**Important: This tutorial assumes you have an Ubuntu Machine with Version 20.04.3 and LTI 1.3 Advantage compatible learning platform already setup!**
 ### Setup:
 - Clone this Repository to your local environment
 - Create a pip virtual environment and install dependencies
