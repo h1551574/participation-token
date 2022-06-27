@@ -18,6 +18,12 @@ First create a new project folder and navigate to it. Then clone the repository 
 ```sh
 git clone https://github.com/h1551574/participation-token.git
 ```
+
+Inside the project folder recursively change the ownership for the project to the current user:
+```sh
+sudo chown -R user participation-token
+```
+
 #### Create a pip virtual environment and install dependencies
 Now navigate to participation-tokenn:
 ```sh
